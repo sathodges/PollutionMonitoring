@@ -1,10 +1,10 @@
 document.addEventListener("DOMContentLoaded", function () {
     const url = "https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/testfeed/data";
 
-    let jsonData = []; // store all data
+    let jsonData = []; // Store fetched data
 
     // --------------------------
-    // Setup: Default date = today, max = today
+    // Setup: Date picker defaults to today
     // --------------------------
     const today = new Date().toISOString().split("T")[0];
     const dateInput = document.getElementById("dateFilter");
@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(response => response.json())
         .then(data => {
             jsonData = data;
-            applyFilter(); // show filtered data for today by default
+            applyFilter(); // Load today's data on page load
         })
         .catch(error => {
             document.getElementById("data").innerHTML =
@@ -31,17 +31,22 @@ document.addEventListener("DOMContentLoaded", function () {
     // --------------------------
     document.getElementById("filterBtn").addEventListener("click", applyFilter);
 
+    // --------------------------
+    // Apply filter & sorting
+    // --------------------------
     function applyFilter() {
         const selectedDate = dateInput.value;
-        const sortType = document.getElementById("sortOrder").value;
 
-        // Filter by selected date
+        // Get sort order value from radio buttons
+        const sortType = document.querySelector('input[name="sortOrder"]:checked').value;
+
+        // Filter by date
         let filtered = jsonData.filter(item => {
             const d = new Date(item.created_at);
             return d.toISOString().split("T")[0] === selectedDate;
         });
 
-        // Sort by date ascending or descending
+        // Sort by ascending or descending
         filtered.sort((a, b) => {
             const da = new Date(a.created_at);
             const db = new Date(b.created_at);
@@ -53,7 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // --------------------------
-    // Show table
+    // Display table
     // --------------------------
     function displayTable(dataList) {
         if (dataList.length === 0) {
@@ -93,7 +98,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // --------------------------
-    // Show average
+    // Display average value
     // --------------------------
     function displayAverage(list, selectedDate) {
         if (list.length === 0) {
