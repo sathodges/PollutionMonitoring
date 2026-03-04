@@ -111,6 +111,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const avg = (sum / list.length).toFixed(2);
 
         document.getElementById("averageResult").innerHTML =
-            `Average for <strong>${selectedDate}</strong>: <strong>${avg}</strong>`;
+            `Daily Average for <strong>${selectedDate}</strong>: <strong>${avg}</strong>`;
     }
 });
