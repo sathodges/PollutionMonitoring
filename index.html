@@ -9,11 +9,20 @@
     </head>
     <body>
         <div class="container">
-            <h1 class="text-center mt-3">Pollution Monitoring</h1>
+            <h1 class="text-center mt-4">Pollution Monitoring</h1>
+
             <div class="mt-4">
+
                 <label for="dateFilter" class="form-label">Filter by Date:</label>
                 <input type="date" id="dateFilter" class="form-control" />
-                <button id="filterBtn" class="btn btn-primary mt-2">Apply Filter</button>
+
+                <label for="sortOrder" class="form-label mt-3">Sort Order:</label>
+                <select id="sortOrder" class="form-select">
+                    <option value="desc">Newest first (Descending)</option>
+                    <option value="asc">Oldest first (Ascending)</option>
+                </select>
+
+                <button id="filterBtn" class="btn btn-primary mt-3">Apply Filter</button>
 
                 <h4 class="mt-3" id="averageResult"></h4>
             </div>

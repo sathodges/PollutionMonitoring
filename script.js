@@ -1,13 +1,24 @@
 document.addEventListener("DOMContentLoaded", function () {
     const url = "https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/testfeed/data";
 
-    let jsonData = []; // store data globally for filtering
+    let jsonData = []; // store all data
 
+    // --------------------------
+    // Setup: Default date = today, max = today
+    // --------------------------
+    const today = new Date().toISOString().split("T")[0];
+    const dateInput = document.getElementById("dateFilter");
+    dateInput.value = today;
+    dateInput.max = today;
+
+    // --------------------------
+    // Fetch JSON data
+    // --------------------------
     fetch(url)
         .then(response => response.json())
         .then(data => {
-            jsonData = data; // save full dataset
-            displayTable(jsonData); // show full list on load
+            jsonData = data;
+            applyFilter(); // show filtered data for today by default
         })
         .catch(error => {
             document.getElementById("data").innerHTML =
@@ -15,22 +26,42 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error("Error fetching JSON:", error);
         });
 
-    // Filter button click
-    document.getElementById("filterBtn").addEventListener("click", () => {
-        const selectedDate = document.getElementById("dateFilter").value;
-        if (!selectedDate) return;
+    // --------------------------
+    // Button listener
+    // --------------------------
+    document.getElementById("filterBtn").addEventListener("click", applyFilter);
 
-        const filtered = jsonData.filter(item => {
+    function applyFilter() {
+        const selectedDate = dateInput.value;
+        const sortType = document.getElementById("sortOrder").value;
+
+        // Filter by selected date
+        let filtered = jsonData.filter(item => {
             const d = new Date(item.created_at);
             return d.toISOString().split("T")[0] === selectedDate;
         });
 
+        // Sort by date ascending or descending
+        filtered.sort((a, b) => {
+            const da = new Date(a.created_at);
+            const db = new Date(b.created_at);
+            return sortType === "asc" ? da - db : db - da;
+        });
+
         displayTable(filtered);
         displayAverage(filtered, selectedDate);
-    });
+    }
 
-    // Display table function
+    // --------------------------
+    // Show table
+    // --------------------------
     function displayTable(dataList) {
+        if (dataList.length === 0) {
+            document.getElementById("data").innerHTML =
+                "<p>No data for this date.</p>";
+            return;
+        }
+
         let table = `
             <table class="table table-striped mt-4">
                 <thead>
@@ -44,9 +75,9 @@ document.addEventListener("DOMContentLoaded", function () {
         `;
 
         dataList.forEach(entry => {
-            const dateTime = new Date(entry.created_at);
-            const date = dateTime.toLocaleDateString();
-            const time = dateTime.toLocaleTimeString();
+            const dt = new Date(entry.created_at);
+            const date = dt.toLocaleDateString();
+            const time = dt.toLocaleTimeString();
 
             table += `
                 <tr>
@@ -58,11 +89,12 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
         table += "</tbody></table>";
-
         document.getElementById("data").innerHTML = table;
     }
 
-    // Display average function
+    // --------------------------
+    // Show average
+    // --------------------------
     function displayAverage(list, selectedDate) {
         if (list.length === 0) {
             document.getElementById("averageResult").innerHTML =
@@ -74,7 +106,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const avg = (sum / list.length).toFixed(2);
 
         document.getElementById("averageResult").innerHTML =
-            `Average Value for <strong>${selectedDate}</strong>: <strong>${avg}</strong>`;
+            `Average for <strong>${selectedDate}</strong>: <strong>${avg}</strong>`;
     }
 });
-``
