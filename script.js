@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(response => response.json())
         .then(data => {
             jsonData = data;
-            applyFilter(); // Load today's data on page load
+            applyFilter(); // Load today's data automatically
         })
         .catch(error => {
             document.getElementById("data").innerHTML =
@@ -27,9 +27,16 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
     // --------------------------
-    // Button listener
+    // Auto-update when date changes
     // --------------------------
-    document.getElementById("filterBtn").addEventListener("click", applyFilter);
+    dateInput.addEventListener("change", applyFilter);
+
+    // --------------------------
+    // Auto-update when sort order changes
+    // --------------------------
+    document.querySelectorAll('input[name="sortOrder"]').forEach(radio => {
+        radio.addEventListener("change", applyFilter);
+    });
 
     // --------------------------
     // Apply filter & sorting
@@ -37,7 +44,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function applyFilter() {
         const selectedDate = dateInput.value;
 
-        // Get sort order value from radio buttons
+        // Get sort order from radio buttons
         const sortType = document.querySelector('input[name="sortOrder"]:checked').value;
 
         // Filter by date
@@ -111,6 +118,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const avg = (sum / list.length).toFixed(2);
 
         document.getElementById("averageResult").innerHTML =
-            `Daily Average for <strong>${selectedDate}</strong>: <strong>${avg}</strong>`;
+            `Average for <strong>${selectedDate}</strong>: <strong>${avg}</strong>`;
     }
 });
