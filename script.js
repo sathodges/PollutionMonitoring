@@ -1,267 +1,407 @@
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", function(){
 
-const ADAFRUIT_URL =
-"https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/testfeed/data"
+const FEED_URL="https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/testfeed/data"
 
-let jsonData = []
-let chart = null
+let jsonData=[]
+let timestampSet=new Set()
+let newestTimestamp=null
+let pollutionChart=null
 
-const dateInput = document.getElementById("datePicker")
-const rangeSelect = document.getElementById("rangeSelect")
-const canvas = document.getElementById("chart")
+let currentPage=1
+const perPage=12
 
-if(!canvas){
-console.error("Chart canvas not found")
-return
+const dateInput=document.getElementById("dateFilter")
+const rangeSelect=document.getElementById("rangeSelect")
+
+const today=new Date().toISOString().split("T")[0]
+dateInput.value=today
+dateInput.max=today
+
+/* ---------- CACHE ---------- */
+
+function loadCache(){
+
+const cached=localStorage.getItem("pollutionCache")
+
+if(cached){
+
+jsonData=JSON.parse(cached)
+
+jsonData.forEach(e=>timestampSet.add(e.created_at))
+
+newestTimestamp=Math.max(...jsonData.map(x=>new Date(x.created_at)))
+
+applyFilter()
+
 }
 
-const ctx = canvas.getContext("2d")
-
-
-/* ---------------------------
-HELPERS
---------------------------- */
-
-function pad(n){
-return n.toString().padStart(2,"0")
 }
 
+function saveCache(){
 
-/* ---------------------------
-FETCH DATA
---------------------------- */
+try{
+localStorage.setItem("pollutionCache",JSON.stringify(jsonData))
+}catch(e){}
 
-async function fetchData(start,end){
+}
 
-const proxyURL = `/api/data?start=${start}&end=${end}`
+/* ---------- SAFE ADD (NO DUPLICATES) ---------- */
 
-const adafruitURL =
-`${ADAFRUIT_URL}?start_time=${start}&end_time=${end}&limit=1000`
+function addEntries(entries){
+
+let added=false
+
+entries.forEach(e=>{
+
+if(!timestampSet.has(e.created_at)){
+
+jsonData.push(e)
+timestampSet.add(e.created_at)
+added=true
+
+}
+
+})
+
+if(added){
+
+newestTimestamp=Math.max(...jsonData.map(x=>new Date(x.created_at)))
+
+}
+
+}
+
+/* ---------- INITIAL LOAD ---------- */
+
+async function loadInitialData(){
 
 try{
 
-const res = await fetch(proxyURL)
+const r=await fetch(`${FEED_URL}?limit=100`)
+const data=await r.json()
 
-if(res.ok){
-return await res.json()
-}
+addEntries(data)
+
+saveCache()
+
+applyFilter()
+
+loadHistoryBackground()
 
 }catch(err){
-console.warn("Proxy not available, using Adafruit direct")
-}
 
-const res = await fetch(adafruitURL)
-return await res.json()
+console.error("Initial load failed",err)
 
 }
 
+}
 
-/* ---------------------------
-LOAD DATA
---------------------------- */
+/* ---------- BACKGROUND HISTORY ---------- */
 
-async function loadData(start,end){
+async function loadHistoryBackground(){
+
+let page=2
+const limit=1000
+
+while(true){
 
 try{
 
-jsonData = await fetchData(start,end)
+const r=await fetch(`${FEED_URL}?limit=${limit}&page=${page}`)
+const data=await r.json()
 
-if(!jsonData || jsonData.length === 0){
+if(data.length===0) break
 
-console.warn("No data returned")
-displayChart([])
-return
+addEntries(data)
+
+if(page%3===0){
+
+saveCache()
+applyFilter()
 
 }
 
-jsonData = jsonData.reverse()
+if(data.length<limit) break
 
-processData()
+page++
 
 }catch(err){
 
-console.error("Failed to load data", err)
+console.error("Background load stopped",err)
+break
 
 }
 
 }
 
-
-/* ---------------------------
-AGGREGATION
---------------------------- */
-
-function aggregateData(data,type){
-
-let buckets = {}
-
-data.forEach(e=>{
-
-const d = new Date(e.created_at)
-
-let key
-
-if(type==="hour"){
-
-key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:00`
+saveCache()
+applyFilter()
 
 }
 
-if(type==="3hour"){
+/* ---------- REALTIME ---------- */
 
-const h = Math.floor(d.getHours()/3)*3
+async function fetchLatest(){
 
-key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(h)}:00`
+try{
+
+const r=await fetch(`${FEED_URL}?limit=50`)
+const data=await r.json()
+
+addEntries(data)
+
+saveCache()
+
+applyFilter()
+
+}catch(err){
+
+console.error("Live update failed",err)
 
 }
 
-if(!buckets[key]) buckets[key] = []
+}
 
-buckets[key].push(Number(e.value))
+/* ---------- FILTER ---------- */
+
+function applyFilter(){
+
+const selectedDate=dateInput.value
+const sortType=document.querySelector('input[name="sortOrder"]:checked').value
+const range=rangeSelect.value
+
+let filtered=jsonData.filter(item=>{
+
+const d=new Date(item.created_at)
+
+if(range==="day"){
+
+return d.toISOString().split("T")[0]===selectedDate
+
+}
+
+if(range==="week"){
+
+const start=new Date(selectedDate)
+start.setDate(start.getDate()-7)
+
+return d>=start
+
+}
+
+if(range==="month"){
+
+const start=new Date(selectedDate)
+start.setMonth(start.getMonth()-1)
+
+return d>=start
+
+}
 
 })
 
-let result = []
+/* remove any duplicates that slipped through */
 
-Object.keys(buckets).forEach(k=>{
+const seen=new Set()
 
-const vals = buckets[k]
-
-const avg = vals.reduce((a,b)=>a+b)/vals.length
-
-result.push({
-time:k,
-value:avg
+filtered=filtered.filter(x=>{
+if(seen.has(x.created_at)) return false
+seen.add(x.created_at)
+return true
 })
 
+filtered.sort((a,b)=>{
+
+const da=new Date(a.created_at)
+const db=new Date(b.created_at)
+
+return sortType==="asc"?da-db:db-da
+
 })
 
-result.sort((a,b)=>new Date(a.time)-new Date(b.time))
+updateStats(filtered)
+displayChart(filtered)
+displayTable(filtered)
+
+}
+
+/* ---------- STATS ---------- */
+
+function updateStats(list){
+
+if(list.length===0) return
+
+const values=list.map(x=>Number(x.value))
+
+const avg=(values.reduce((a,b)=>a+b,0)/values.length).toFixed(2)
+const min=Math.min(...values)
+const max=Math.max(...values)
+
+const latest=list[0].value
+
+document.getElementById("avgValue").innerText=avg
+document.getElementById("minValue").innerText=min
+document.getElementById("maxValue").innerText=max
+document.getElementById("latestValue").innerText=latest
+
+}
+
+/* ---------- MOVING AVERAGE ---------- */
+
+function movingAverage(arr,window=5){
+
+let result=[]
+
+for(let i=0;i<arr.length;i++){
+
+let start=Math.max(0,i-window)
+let subset=arr.slice(start,i+1)
+
+result.push(subset.reduce((a,b)=>a+b,0)/subset.length)
+
+}
 
 return result
 
 }
 
+/* ---------- CHART ---------- */
 
-/* ---------------------------
-PROCESS DATA
---------------------------- */
+function displayChart(list){
 
-function processData(){
+if(list.length===0) return
 
-const range = rangeSelect.value
+const sorted=[...list].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
 
-let graphData
+const times=sorted.map(x=>new Date(x.created_at))
+const values=sorted.map(x=>Number(x.value))
 
-if(range === "day"){
+const hours=times.map(t=>t.getHours()+t.getMinutes()/60)
 
-graphData = jsonData
+const minHour=Math.floor(Math.min(...hours))
+const maxHour=Math.ceil(Math.max(...hours))
 
-}
+const avg=movingAverage(values)
 
-if(range === "week"){
+const points=hours.map((h,i)=>({x:h,y:values[i]}))
+const avgPoints=hours.map((h,i)=>({x:h,y:avg[i]}))
 
-graphData = aggregateData(jsonData,"hour")
+const ctx=document.getElementById("pollutionChart")
 
-}
+if(!pollutionChart){
 
-if(range === "month"){
+pollutionChart=new Chart(ctx,{
 
-graphData = aggregateData(jsonData,"3hour")
-
-}
-
-displayChart(graphData)
-
-}
-
-
-/* ---------------------------
-CHART
---------------------------- */
-
-function displayChart(data){
-
-const labels = []
-const values = []
-
-data.forEach(e=>{
-
-let d
-
-if(e.created_at){
-d = new Date(e.created_at)
-}else{
-d = new Date(e.time)
-}
-
-labels.push(`${pad(d.getHours())}:${pad(d.getMinutes())}`)
-values.push(Number(e.value))
-
-})
-
-if(chart) chart.destroy()
-
-chart = new Chart(ctx,{
 type:"line",
+
 data:{
-labels:labels,
-datasets:[{
-label:"Pollution",
-data:values,
-borderColor:"#007bff",
-backgroundColor:"rgba(0,0,0,0)",
-tension:0.3,
-pointRadius:2
-}]
+datasets:[
+{label:"Pollution",data:points,borderWidth:2,tension:0.3},
+{label:"Moving Avg",data:avgPoints,borderColor:"blue",pointRadius:0}
+]
 },
+
 options:{
+animation:false,
 responsive:true,
-maintainAspectRatio:false,
 scales:{
+x:{
+type:"linear",
+min:minHour,
+max:maxHour,
+ticks:{
+stepSize:1,
+callback:v=>String(v).padStart(2,"0")+":00"
+}
+},
 y:{beginAtZero:true}
 }
 }
+
+})
+
+}else{
+
+pollutionChart.data.datasets[0].data=points
+pollutionChart.data.datasets[1].data=avgPoints
+
+pollutionChart.options.scales.x.min=minHour
+pollutionChart.options.scales.x.max=maxHour
+
+pollutionChart.update()
+
+}
+
+}
+
+/* ---------- TABLE ---------- */
+
+function displayTable(list){
+
+const totalPages=Math.ceil(list.length/perPage)
+
+if(currentPage>totalPages) currentPage=1
+
+const start=(currentPage-1)*perPage
+const page=list.slice(start,start+perPage)
+
+let html=`<table class="table table-striped"><thead><tr><th>Time</th><th>Value</th></tr></thead><tbody>`
+
+page.forEach(e=>{
+
+const time=new Date(e.created_at).toLocaleTimeString()
+
+html+=`<tr><td>${time}</td><td>${e.value}</td></tr>`
+
+})
+
+html+="</tbody></table>"
+
+html+=`<nav><ul class="pagination justify-content-center">`
+
+for(let i=1;i<=totalPages;i++){
+
+html+=`<li class="page-item ${i===currentPage?"active":""}">
+<button class="page-link" data-page="${i}">${i}</button>
+</li>`
+
+}
+
+html+=`</ul></nav>`
+
+document.getElementById("data").innerHTML=html
+
+document.querySelectorAll(".page-link").forEach(b=>{
+
+b.onclick=()=>{
+currentPage=Number(b.dataset.page)
+displayTable(list)
+}
+
 })
 
 }
 
+/* ---------- DARK MODE ---------- */
 
-/* ---------------------------
-FILTER
---------------------------- */
-
-function applyFilter(){
-
-const date = dateInput.value
-const range = rangeSelect.value
-
-const start = new Date(date)
-let end = new Date(date)
-
-if(range==="day") end.setDate(start.getDate()+1)
-if(range==="week") end.setDate(start.getDate()+7)
-if(range==="month") end.setMonth(start.getMonth()+1)
-
-loadData(start.toISOString(), end.toISOString())
-
+document.getElementById("darkToggle").onclick=()=>{
+document.body.classList.toggle("dark")
 }
 
+/* ---------- EVENTS ---------- */
 
-/* ---------------------------
-EVENTS
---------------------------- */
+dateInput.onchange=applyFilter
+rangeSelect.onchange=applyFilter
 
-dateInput.addEventListener("change", applyFilter)
-rangeSelect.addEventListener("change", applyFilter)
+document.querySelectorAll('input[name="sortOrder"]').forEach(r=>{
+r.onchange=applyFilter
+})
 
+/* ---------- START ---------- */
 
-/* ---------------------------
-INITIAL LOAD
---------------------------- */
+loadCache()
+loadInitialData()
 
-dateInput.value = new Date().toISOString().slice(0,10)
-
-applyFilter()
+setInterval(fetchLatest,5000)
 
 })
