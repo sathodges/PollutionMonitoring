@@ -1,13 +1,43 @@
 let jsonData=[]
 let chart
 
+const ADAFRUIT_URL =
+"https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/testfeed/data"
+
 const dateInput=document.getElementById("datePicker")
 const rangeSelect=document.getElementById("rangeSelect")
 
 const ctx=document.getElementById("chart").getContext("2d")
 
+
 function pad(n){
 return n.toString().padStart(2,"0")
+}
+
+
+/* FETCH DATA */
+
+async function fetchData(start,end){
+
+const proxyURL=`/api/data?start=${start}&end=${end}`
+const adafruitURL=
+`${ADAFRUIT_URL}?start_time=${start}&end_time=${end}&limit=1000`
+
+try{
+
+const res=await fetch(proxyURL)
+
+if(res.ok){
+return await res.json()
+}
+
+}catch(err){}
+
+/* fallback */
+
+const res=await fetch(adafruitURL)
+return await res.json()
+
 }
 
 
@@ -15,8 +45,16 @@ return n.toString().padStart(2,"0")
 
 async function loadData(start,end){
 
-const res = await fetch(`/api/data?start=${start}&end=${end}`)
-jsonData = await res.json()
+jsonData = await fetchData(start,end)
+
+if(!jsonData || !jsonData.length){
+
+console.warn("No data returned")
+return
+
+}
+
+jsonData=jsonData.reverse()
 
 processData()
 
@@ -42,6 +80,7 @@ key=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHo
 if(type==="3hour"){
 
 const h=Math.floor(d.getHours()/3)*3
+
 key=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(h)}:00`
 
 }
@@ -57,7 +96,6 @@ let result=[]
 Object.keys(buckets).forEach(k=>{
 
 const vals=buckets[k]
-
 const avg=vals.reduce((a,b)=>a+b)/vals.length
 
 result.push({
@@ -74,7 +112,7 @@ return result
 }
 
 
-/* PROCESS */
+/* PROCESS DATA */
 
 function processData(){
 
@@ -133,6 +171,10 @@ data:values,
 borderColor:"#007bff",
 tension:0.3
 }]
+},
+options:{
+responsive:true,
+maintainAspectRatio:false
 }
 })
 
@@ -160,6 +202,7 @@ loadData(start.toISOString(),end.toISOString())
 
 dateInput.addEventListener("change",applyFilter)
 rangeSelect.addEventListener("change",applyFilter)
+
 
 dateInput.value=new Date().toISOString().slice(0,10)
 
