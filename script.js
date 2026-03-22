@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", function(){
 
-const FEED_URL="https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/testfeed/data"
+const FEED_URL="https://io.adafruit.com/api/v2/CyCPollutionMonitor/feeds/cycnantgarw2dot5/data"
 
 let jsonData=[]
 let timestampSet=new Set()
