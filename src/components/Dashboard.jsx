@@ -1,17 +1,17 @@
 import { useState } from "react";
-import { usePollutionData, Feed, Range } from "../hooks/usePollutionData";
-import { ControlsBar } from "./ControlsBar";
-import { StatsCards } from "./StatsCards";
-import { PollutionChart } from "./PollutionChart";
-import { DataTable } from "./DataTable";
+import usePollutionData from "../hooks/usePollutionData.js";
+import ControlsBar from "./ControlsBar.jsx";
+import StatsCards from "./StatsCards.jsx";
+import PollutionChart from "./PollutionChart.jsx";
+import DataTable from "./DataTable.jsx";
 
-export function Dashboard() {
+export default function Dashboard() {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [feed, setFeed] = useState<Feed>("2dot5");
-  const [range, setRange] = useState<Range>("day");
-  const [date, setDate] = useState<string>(today);
-  const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [feed, setFeed] = useState("2dot5");
+  const [range, setRange] = useState("day");
+  const [date, setDate] = useState(today);
+  const [sort, setSort] = useState("newest");
 
   const { data, loading } = usePollutionData(feed, range, date);
 
@@ -33,14 +33,12 @@ export function Dashboard() {
       {data && (
         <>
           <StatsCards stats={data.stats} />
-
           <PollutionChart
             points={data.points}
             movingAvg={data.movingAvg}
             monitorAvgByTimeOfDay={data.monitorAvgByTimeOfDay}
             range={range}
           />
-
           <DataTable points={data.points} sort={sort} />
         </>
       )}

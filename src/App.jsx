@@ -1,18 +1,14 @@
 import { useEffect, useState } from "react";
-import { Dashboard } from "./components/Dashboard";
+import Dashboard from "./components/Dashboard.jsx";
 
-export function App() {
-  const [dark, setDark] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return document.documentElement.classList.contains("dark");
-  });
+export default function App() {
+  const [dark, setDark] = useState(() =>
+    document.documentElement.classList.contains("dark")
+  );
 
   useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    if (dark) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
   }, [dark]);
 
   return (
@@ -35,5 +31,3 @@ export function App() {
     </div>
   );
 }
-export default App;
-
