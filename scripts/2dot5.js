@@ -47,7 +47,7 @@ if(query.range){
 
 function loadCache(){
 
-const cached=localStorage.getItem("pollutionCache")
+const cached=localStorage.getItem("pollutionCache2.5")
 
 if(cached){
 
@@ -66,7 +66,7 @@ applyFilter()
 function saveCache(){
 
 try{
-localStorage.setItem("pollutionCache",JSON.stringify(jsonData))
+localStorage.setItem("pollutionCache2.5",JSON.stringify(jsonData))
 }catch(e){}
 
 }
